@@ -14,8 +14,8 @@ type Any = interface{}
 func main() {
 	pid := goactor.Spawn()
 	go func() {
-		matchAny := func(in Any) (bool, Any) {
-			return true, in
+		matchAny := func(in Any) bool {
+			return true
 		}
 		handleTimeout := func(p *goactor.Pid) Any {
 			return "exiting"
@@ -38,7 +38,8 @@ func main() {
 	goactor.Send(pid, "test timeout after")
 	goactor.WaitAll() //make sure no actor is waiting
 }
-//<60.038µs> got test
-//<60.038µs> got test timeout before
-//<60.038µs> got exiting
+
+//<479ns> got test
+//<479ns> got test timeout before
+//<479ns> got exiting
 ```
