@@ -2,7 +2,6 @@ package goactor
 
 import "time"
 import "sync"
-import "fmt"
 
 var pids_wg *sync.WaitGroup
 var sysStartTime time.Time
@@ -10,26 +9,6 @@ var sysStartTime time.Time
 func init() {
 	pids_wg = new(sync.WaitGroup)
 	sysStartTime = time.Now()
-}
-
-type ExitReason struct {
-	flag exitReasonFlag
-	info Any
-}
-
-func (r ExitReason) Error() string {
-	return fmt.Sprintf("exited %s: %s", r.flag, r.info)
-}
-
-type exitReasonFlag string
-
-const exitReasonNormal exitReasonFlag = "normal"
-
-func NormalExit(v Any) ExitReason {
-	return ExitReason{
-		exitReasonNormal,
-		v,
-	}
 }
 
 type Pid struct {
@@ -40,7 +19,7 @@ type Pid struct {
 	input      chan Any
 	matching   chan Any
 	inbox      chan Any
-	system     chan SysMail
+	system     chan Mail
 	exited     chan struct{}
 	*sync.Mutex
 }
@@ -54,7 +33,7 @@ func Spawn() *Pid {
 		input:      make(chan Any),
 		matching:   make(chan Any, 1),
 		inbox:      make(chan Any),
-		system:     make(chan SysMail),
+		system:     make(chan Mail),
 		exited:     make(chan struct{}),
 	}
 	pids_wg.Add(1)
@@ -69,7 +48,7 @@ func Spawn() *Pid {
 			}
 			select {
 			case sm := <-pid.system:
-				if sm.t == sysMailExit {
+				if sm.t == mailSysExit {
 					pid.kill()
 					return
 				}
@@ -102,9 +81,9 @@ func Send(dst *Pid, v Any) {
 	}()
 }
 
-func (p *Pid) Exit(reason ExitReason) {
-	p.system <- SysMail{
-		sysMailExit,
+func (p *Pid) Exit(reason ExitError) {
+	p.system <- Mail{
+		mailSysExit,
 		reason,
 	}
 }
@@ -165,7 +144,7 @@ func (p *Pid) doReceive(m MailMatcher, d time.Duration, f func(*Pid) Any) Any {
 			if m != nil {
 				if m(mail) {
 					tryStopTimer(timer)
-					p.mailbox.unshiftAll(p.waiting)
+					p.mailbox.transferFront(p.waiting)
 					return mail
 				}
 			}

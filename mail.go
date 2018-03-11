@@ -1,10 +1,25 @@
 package goactor
 
-type SysMail struct {
-	t sysMailType
+import "sync"
+
+type Mail struct {
+	t mailType
 	p Any
 }
 
-type sysMailType int
+type mailType int
 
-const sysMailExit = iota
+const (
+	mailUser mailType = iota
+	mailSysExit
+)
+
+var mail_pool *sync.Pool
+
+func init() {
+	mail_pool = &sync.Pool{
+		New: func() Any {
+			return Mail{}
+		},
+	}
+}

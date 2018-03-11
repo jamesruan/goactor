@@ -1,12 +1,8 @@
 package goactor
 
-import "container/list"
-
 type listMailbox struct {
-	*list.List
+	queue
 }
-
-type Any = interface{}
 
 // MailMatcher checks the mail in mailbox, returns true will remove the mail from the box.
 //
@@ -15,39 +11,44 @@ type MailMatcher func(in Any) (matched bool)
 
 func newListMailbox() *listMailbox {
 	return &listMailbox{
-		list.New(),
+		makeQueue(),
 	}
 }
 
 func (m *listMailbox) enqueue(v Any) {
-	m.PushBack(v)
+	m.enqueueType(v, mailUser)
+}
+
+func (m *listMailbox) enqueueType(v Any, t mailType) {
+	mail := mail_pool.Get().(Mail)
+	mail.t = t
+	mail.p = v
+	m.queue.enqueue(mail)
 }
 
 func (m *listMailbox) peek() (v Any, ok bool) {
-	front := m.Front()
-	ok = front != nil
-	if ok {
-		v = front.Value
+	return m.peekType(mailUser)
+}
+
+func (m *listMailbox) peekType(t mailType) (v Any, ok bool) {
+	if v, ok = m.queue.peek(); ok {
+		mail := v.(Mail)
+		ok = mail.t == t
+		if ok && t == mailUser {
+			v = mail.p
+		}
 	}
 	return
 }
 
-func (m *listMailbox) dequeue() (v Any, ok bool) {
-	front := m.Front()
-	ok = front != nil
+func (m *listMailbox) dequeue() (ok bool) {
+	v, ok := m.queue.dequeue()
 	if ok {
-		v = m.Remove(front)
+		mail_pool.Put(v)
 	}
 	return
 }
 
-func (m *listMailbox) isEmpty() bool {
-	return m.Front() == nil
-}
-
-func (m *listMailbox) unshiftAll(from *listMailbox) {
-	if !from.isEmpty() {
-		m.PushFrontList(from.List)
-		from.Init()
-	}
+func (m *listMailbox) transferFront(from *listMailbox) {
+	m.queue.transferFront(from.queue)
 }
